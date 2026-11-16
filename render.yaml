@@ -1,0 +1,13 @@
+# Render Blueprint: GitHub deposunu bagla -> otomatik kurulur (ucretsiz plan)
+services:
+  - type: web
+    name: nightshift-relay
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: RELAY_ONLY
+        value: "1"
+      - key: LOBBY_MAX_MIN      # lobi omru (dk). 15 dk dolunca lobi kapanir, bos kalan sunucu uyur
+        value: "15"
