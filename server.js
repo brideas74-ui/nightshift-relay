@@ -96,10 +96,14 @@ const rnd = () => String(Math.floor(Math.random() * 1e9));
 function newCode() { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s; do { s = ''; for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)]; } while (lobbies.has(s)); return s; }
 const clean = (s, n) => String(s == null ? '' : s).replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, n);
 const GMS = ['classic', 'regular', 'detective'];
+// ---- Behind Us ayarlari (lobi sahibi lobi acikken degistirir; herkese yayilir) ----
+const AUS_DEF = { stun: 20, killCd: 15, catchR: 1.9, linger: 4, grace: 5, tpTime: 5, tpCd: 30, bossHits: 10, bossHp: 100, bossMg: .35, bossGun: 4, bossQcd: .8, revert: 10, shiftR: 7, loneR: 8, loneWin: 1, blink: 1, creBlink: 0 };
+const AUS_RNG = { stun: [3, 60], killCd: [0, 120], catchR: [1, 4], linger: [1, 15], grace: [0, 20], tpTime: [1, 15], tpCd: [0, 180], bossHits: [1, 30], bossHp: [20, 500], bossMg: [.05, 3], bossGun: [.5, 30], bossQcd: [.2, 5], revert: [0, 120], shiftR: [2, 20], loneR: [3, 20], loneWin: [0, 1], blink: [0, 1], creBlink: [0, 1] };
+const ausSet = (L, k, v) => { const r = AUS_RNG[k]; v = +v; if (!r || !isFinite(v)) return false; L.aus[k] = Math.round(Math.max(r[0], Math.min(r[1], v)) * 100) / 100; return true; };
 function tally(L) { const t = { classic: 0, regular: 0, detective: 0 }; L.votes.forEach(v => { if (t[v] != null) t[v]++; }); return t; }
 function info(L) {
   return { code: L.code, name: L.name, max: L.max, priv: L.priv, diff: L.diff, state: L.state, day: L.day, host: L.host,
-    au: L.au ? 1 : 0, ncre: L.ncre, tally: tally(L),
+    au: L.au ? 1 : 0, ncre: L.ncre, aus: L.aus, tally: tally(L),
     players: [...L.players.values()].map(p => ({ id: p.id, name: p.name, st: p.st, v: L.votes.get(p.id) || null })) };
 }
 const shuf = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -125,7 +129,7 @@ function leave(c) {
 function night(L) {
   L.day++; L.round++; L.players.forEach(p => p.st = 'alive');
   if (L.day > 10) return endGame(L, true);
-  bcast(L, { t: 'night', day: L.day, seed: rnd(), r: L.round, diff: L.diff, gm: L.gm || 'classic', au: L.auOn ? 1 : 0 });
+  bcast(L, { t: 'night', day: L.day, seed: rnd(), r: L.round, diff: L.diff, gm: L.gm || 'classic', au: L.auOn ? 1 : 0, aus: L.aus });
   pushLobby(L);
 }
 function endGame(L, win, cw) {
@@ -164,7 +168,7 @@ function onMsg(c, m) {
       c.name = clean(m.pname, 16) || 'Player'; c.st = 'alive';
       const l = { code: newCode(), name: clean(m.name, 24) || (c.name + "'s lobby"), max: Math.max(2, Math.min(8, +m.max || 4)), priv: !!m.priv,
         diff: Math.max(0, Math.min(3, (m.diff == null ? 1 : +m.diff) | 0)), state: 'wait', day: 1, round: 1, host: c.id, players: new Map(),
-        votes: new Map(), roles: new Map(), au: 0, auOn: 0, gm: null, ncre: 1, created: Date.now(), warned: 0 };
+        votes: new Map(), roles: new Map(), au: 0, auOn: 0, gm: null, ncre: 1, aus: Object.assign({}, AUS_DEF), created: Date.now(), warned: 0 };
       l.ncre = Math.max(1, Math.min(l.max - 1, +m.ncre || 1));
       l.players.set(c.id, c); c.lobby = l; lobbies.set(l.code, l);
       send(c, Object.assign({ t: 'joined', you: c.id }, info(l)));
@@ -195,16 +199,18 @@ function onMsg(c, m) {
       }
       // her oyuncuya kendi rolu ayri gonderilir (kimin yaratik oldugu gizli kalir)
       ps.forEach(p => send(p, { t: 'role', gm: L.gm, au: L.auOn, role: L.roles.get(p.id) || 'human', r: L.round }));
-      bcast(L, { t: 'night', day: 1, seed: rnd(), r: L.round, diff: L.diff, gm: L.gm, au: L.auOn, first: 1 });
+      bcast(L, { t: 'night', day: 1, seed: rnd(), r: L.round, diff: L.diff, gm: L.gm, au: L.auOn, aus: L.aus, first: 1 });
       pushLobby(L);
       return;
     }
     case 'vote': { if (L && L.state === 'wait' && GMS.includes(m.gm)) { L.votes.set(c.id, m.gm); pushLobby(L); } return; }
     case 'au': { if (L && L.host === c.id && L.state === 'wait') { L.au = m.v ? 1 : 0; pushLobby(L); } return; }
     case 'ncre': { if (L && L.host === c.id && L.state === 'wait') { L.ncre = Math.max(1, Math.min(Math.max(1, L.max - 1), m.v | 0)); pushLobby(L); } return; }
+    case 'aus': { if (L && L.host === c.id && L.state === 'wait') { if (m.reset) L.aus = Object.assign({}, AUS_DEF); else ausSet(L, m.k, m.v); pushLobby(L); } return; }
     case 'diff': { if (L && L.host === c.id && L.state === 'wait') { L.diff = Math.max(0, Math.min(3, m.v | 0)); pushLobby(L); } return; }
     case 's': { if (L) bcast(L, Object.assign({}, m, { id: c.id }), c); return; }
     case 'dead': { if (L && L.state === 'play' && m.r === L.round) { c.st = 'dead'; pushLobby(L); check(L); } return; }
+    case 'cwin': { if (L && L.state === 'play' && L.auOn && m.r === L.round && isCre(L, c)) endGame(L, false, true); return; }   // v138: yalniz oyuncuyu oldurunce Creature kazanir
     case 'esc': { if (L && L.state === 'play' && m.r === L.round) { L.state = 'wait'; L.day = 1; L.round++; L.players.forEach(p => p.st = 'alive'); L.auOn = 0; L.roles.clear(); L.gm = null; bcast(L, { t: 'win' }); pushLobby(L); } return; }
     // genel aktarim: bc = herkese (gonderen haric), to = tek oyuncuya
     case 'bc': { if (L && m.d) bcast(L, { t: 'x', from: c.id, d: m.d }, c); return; }
