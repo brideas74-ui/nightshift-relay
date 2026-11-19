@@ -51,3 +51,14 @@ Adres `YOUR-SERVER` kaldığı sürece online arama kapalıdır, sadece LAN çal
 ## Güvenlik / limitler (server.js)
 IP başına 12 bağlantı, sunucuda en fazla 300 lobi, lobi ömrü `LOBBY_MAX_MIN` (varsayılan 15 dk), istemci başına saniyede 300 mesaj üstü yok sayılır, 75 sn sessiz bağlantı atılır, 25 sn'de bir keep-alive. Değiştirmek için ortam değişkenleri: `MAX_PER_IP`, `MAX_LOBBIES`, `TRUST_PROXY=0` (proxy arkasında değilsen).
 `server.js` değişirse `relay_deploy/guncelle.bat` ile kopyala ve sunucuya yeniden yükle.
+
+## Hesaplar (v143) - kullanici adi dunya genelinde benzersiz
+- Online lobi artik hesap ister. Oyuncu adi = hesap adi; baskasi ayni (veya I/l/1, O/0 gibi benzer gorunen) adi alamaz.
+- Sifreler scrypt ile hashlenir, oturum anahtarlari sunucuda sadece SHA-256 olarak tutulur. Hatali giris sinirlari: IP basina 10 hata -> 15 dk engel, hesapta 5 hata -> artan kilit.
+- ONEMLI: Ucretsiz Render'da dosya sistemi gecicidir (sunucu uyuyunca/yeniden baslayinca accounts.json SILINIR). Hesaplarin kalmasi icin ucretsiz Upstash Redis kullan:
+  1. https://upstash.com -> Create Database (Redis, ucretsiz) -> "REST API" sekmesinden UPSTASH_REDIS_REST_URL ve UPSTASH_REDIS_REST_TOKEN degerlerini kopyala.
+  2. Render -> servis -> Environment: bu iki degiskeni ekle. (Istege bagli ACCOUNT_PEPPER = uzun rastgele bir yazi; sonradan DEGISTIRME, herkesin sifresi bozulur.)
+  3. Deploy et. Logda "Hesaplar yuklendi: N (Upstash)" yazmali.
+- Kendi VPS'inde (kalici disk) ek bir sey gerekmez: accounts.json otomatik olusur (ACCOUNTS_FILE ile yolu degistirebilirsin). Dosyayi yedekle, kimseyle paylasma.
+- Ortam degiskenleri: REQUIRE_AUTH (1/0; varsayilan relay'de 1), REG_PER_IP (saatte IP basina hesap, varsayilan 5).
+- Acilista "Play offline" ile hesapsiz tek kisilik oynanabilir (assets/account.js icinde ALLOW_GUEST=false yaparsan kapanir).

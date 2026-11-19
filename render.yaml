@@ -11,3 +11,9 @@ services:
         value: "1"
       - key: LOBBY_MAX_MIN      # lobi omru (dk). 15 dk dolunca lobi kapanir, bos kalan sunucu uyur
         value: "15"
+      - key: UPSTASH_REDIS_REST_URL     # hesaplarin kalici saklanmasi icin (bkz. KURULUM.md - Hesaplar)
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: ACCOUNT_PEPPER             # istege bagli, uzun rastgele yazi (sonradan degistirme)
+        sync: false
